@@ -51,7 +51,8 @@ motor M;
 pid pid_v;
 pid pid_a;	//摆角度环
 pid pid_p;	//电机位置环
-
+pid pid_b;	
+pid pid_m;	//电机角速度环
 pole pole_ins;
 /* USER CODE END PD */
 
@@ -130,12 +131,16 @@ int main(void)
 	//开启PWM
 	HAL_TIM_PWM_Start(&htim2,TIM_CHANNEL_1);
 	HAL_TIM_PWM_Start(&htim2,TIM_CHANNEL_2);
+	//开启U2串口中断
+	HAL_UART_Receive_IT(&huart2, &(UartBuff_Ins.Rxbuf), 1);
+	//开启U3DMA中断
+	__HAL_UART_ENABLE_IT(&huart3,UART_IT_IDLE);
+	HAL_UART_Receive_DMA(&huart3,jy901_ins.DataBuf,BufLen);
 	motor_Init(&M);
+	jy901_ins.wz_last = 0;
 	//开启TIM中断
 	HAL_TIM_Base_Start_IT(&htim4);	//100Hz
 	__HAL_TIM_CLEAR_FLAG(&htim4, TIM_FLAG_UPDATE);
-	//开启U2串口中断
-	HAL_UART_Receive_IT(&huart2, &(UartBuff_Ins.Rxbuf), 1);
 	
 	pole_ins.angle = 0;
 	pole_ins.angle_last = 0;
@@ -143,21 +148,23 @@ int main(void)
 	UartBuff_Ins.Flag = 0x0e;
 //	float kpa = 10*0.5,kia = 0,kda = 15*0.8;	//角度环PID
 //	float kpp = 0.2,kip = 0.0,kdp = 10;	//位置环
-	float kpa = 10*0.6,kia = 0,kda = 25*0.6;	//角度环PID
-	float kpp = 0.46,kip = 0.0,kdp = 20;	//位置环
+	float kpa = 7,kia = 0,kda = 12;	//角度环PID
+	float kpp = 0.31,kip = 0.0,kdp = 17;	//位置环
 //	float kpa = 10*0.5,kia = 0,kda = 30*0.7;	//角度环PID
 //	float kpp = 0.4,kip = 0.0,kdp = 25;	//位置环
 //	
-	float kpv = 0.175,kiv = 0.025,kdv = 0;
-	
+	float kpv = 0.0,kiv = 0.0,kdv = 0;
+	float kpb = 0.43,kib = 0.0,kdb = 0;	//角加速度环
+	float kpm = 0.25,kim = 0.01,kdm = 0;	//角速度环
 //	float kpp = -0.65,kip = -0.001,kdp = 0;	//位置环
 //	float kpa = 7,kia = 0,kda = 20;	//角度环PID
 //	float kpa = 4.2,kia = 0,kda = 16.2;	//角度环PID
 	pid_init(&pid_a,kpa,kia,kda);
 	pid_init(&pid_p,kpp,kip,kdp);
 	pid_init(&pid_v,kpv,kiv,kdv);
-	
-//	motor_pwm_set(40);
+	pid_init(&pid_b,kpb,kib,kdb);
+	pid_init(&pid_m,kpm,kim,kdm);
+	//motor_pwm_set(30);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -226,23 +233,26 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	static int counter;
-	int pwm;
 	char str[30];
 	//100Hz
 	if(htim->Instance==TIM4){
 		counter++;
 		if(counter==10){
 			counter=0;
-			sprintf(str,"main.t0.txt=\"角度：%.2f\"",pole_ins.angle);
+			sprintf(str,"main.t0.txt=\"角速度：%.2f\"",M.Speed);
 			HMISends(str);
 			sprintf(str,"main.t1.txt=\"位置：%.2f\"",M.ang);
 			HMISends(str);
 		}
+		get_yaw_az(&jy901_ins);
 		adc2angle();
-		speed_cal();
+		m_yaw_cal();
+//		speed_cal();
 //		if(fabs(180-pole_ins.angle)<45)
 //			erect_loop();
 //		else motor_pwm_set(0);
+		
+		
 		if(mission_select==1){
 			mission1();
 		}
@@ -257,13 +267,16 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 		else if(mission_select==4){
 			mission4();
 		}
+		else if(mission_select==5){
+			mission5();
+		}
+		else if(mission_select==6){
+			mission6();
+		}
 		else if(mission_select==0){
 			motor_pwm_set(0);
 		}
-//		if(fabs(179-pole_ins.angle)<45)
-//			erect_loop();
-//		else 
-//			motor_pwm_set(0);
+
 	}
 }
 

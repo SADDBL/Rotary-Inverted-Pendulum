@@ -101,6 +101,9 @@ void USART3_IRQHandler(void)
 
 void get_yaw_az(JY901 *j){
 	j->yaw = ((short)(j->DataBuf[40]<<8|j->DataBuf[39]))*180/32768.0;
-	j->az = ((short)(j->DataBuf[18]<<8|j->DataBuf[17]))*156.8f/32768.0;
+	j->wz = ((short)(j->DataBuf[29]<<8|j->DataBuf[28]))*2000/32768.0;
+	M.beta = (j->wz-j->wz_last)/CONTROL_CYCLE*1000*PI/180;
+	M.Speed = j->wz;
+	j->wz_last = j->wz;
 }
 

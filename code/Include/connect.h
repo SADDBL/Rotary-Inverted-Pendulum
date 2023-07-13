@@ -17,7 +17,8 @@ typedef struct UartRecieve
 typedef struct JY901_DMA{
 	uint8_t DataBuf[BufLen];
 	float yaw;
-	float az;
+	float wz;
+	float wz_last;
 }JY901;
 
 extern JY901 jy901_ins;
@@ -27,4 +28,5 @@ extern int mission_select;
 void UartDateHandler(UartBuff *UartBuff1);
 void HMISends(char *buf1);
 void HMISendb(uint8_t k);
+void get_yaw_az(JY901 *j);
 #endif
